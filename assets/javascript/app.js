@@ -12,90 +12,130 @@
 // Variable to reference the database
 var database = firebase.database();
 
+var now=new Date();
+
+console.log(now);
+
 // initial value
 var train = {
 	name: "",
 	destination: "",
-	firstTime: "",
+	firstTime: 0,
 	frequency: 0,
-	dateAdded: firebase.database.ServerValue.TIMESTAMP
-}
+	dateAdded: 0
+};
 
 // event listener for submit button click
 $("#submitbtn").on("click", function()
 {
-	
-	console.log("button clicked");
-
 	train.name = $("#train-name-input").val().trim();
 	train.destination = $("#destination-input").val().trim();
 	train.firstTime = $("#first-time-input").val().trim();
 	train.frequency = $("#frequency-input").val().trim();
+	train.dateAdded = firebase.database.ServerValue.TIMESTAMP;
 
 	console.log("train: " + JSON.stringify(train));
 	
     // Save new value to Firebase
 	database.ref().push(train);
 
-	// Don't refresh the page!
+	// clear form fields
+	$("#train-name-input").val("");
+	$("#destination-input").val("");
+	$("#first-time-input").val("");
+	$("#frequency-input").val("");
+
+	// Don't refresh the page
 	return false;
 });
 
 
-// // First Time (pushed back 1 year to make sure it comes before current time)
-// var firstTimeConverted = moment(firstTime,"hh:mm").subtract(1, "years");
-// console.log(firstTimeConverted);
-
-
-
-// take data input by admin
-
-// convert time input as needed
-
-// store as root variable in the firebase, make sure you are appending into the database
-
-// extract the latest addition and display in the train schedule
-
-// sort the train times by soonest,  to later
 
 //  display 10 trains at once
 
 
-// event lister for the search button
-    // $("#search").on('click', function() {
 
-// function searchNYT(){
-// // build the queryURL
-// var queryURL = "https://api.nytimes.com/svc/search/v2/articlesearch.json?api-key=5aa79c02ea5840d28aa684eed86fe61c&q=" + searchTerm
-// + "&begin_date=" + beginDate + "&end_date=" + endDate + "&page=0&h1=true";
+database.ref().on("child_added", function(childSnapshot, prevChildKey)
+{
 
-// //build ajax call
-// $.ajax ({url: queryURL, method: "GET"})
-// .done(function(NYTData){
-// 	console.log(NYTData.response.docs);
+	console.log(childSnapshot.val());
+
+	var newName = childSnapshot.val().name;
+	var newDestination = childSnapshot.val().destination;
+	var newFirsttime = childSnapshot.val().firstTime;
+	var newFrequency = childSnapshot.val().frequency;
+
+	// current time
+	var timeNow = moment().format("hh:mm");
+	console.log(timeNow);
+	console.log(newFirsttime);
+
+	//convert first train time to localized format
+	var firstTimeconverted = moment(newFirsttime,"LT");
+
+	// difference in minutes  between time of first train and the current time
+	var diffMins = moment().diff(moment(firstTimeconverted), "minutes");
+
+	// find out whether the difference in minutes is more than the frequency,  i.e. there is an additional train arriving within that window
+	var remainder = diffMins % newFrequency;
+
+	//if the first train has already arrived, subtract the remainder from the frequency rate to get the time remaining before the next train
+	var nextTraintime = newFrequency-remainder;
+	console.log("Time to Next 1: "+nextTraintime);
+
+	//if the first train has not arrived yet, take the time of the first train and find the difference between now and the arrival time in minutes
+	var nextTraintime2 = moment(firstTimeconverted).diff(moment(), "minutes");
+	console.log("Time to Next 2: "+nextTraintime2);
 
 
+	//var for storing the time until the next train arrives
+	var nextMins = 0;
 
-// 	for (var i = 0; i<numResults; i++) {
+	// if the time until the first train arrival is negative, that means the train has not arrived yet -- so store the nextTraintime2 minutes from above
+	if (diffMins<0){
+		nextMins=nextTraintime2+1;
+	}
 
-// 		var resultDiv = $("<div>");
-// 		var pHeadline = $('<h1>').text(NYTData.response.docs[i].headline.highlight);
-// 		var pByline = $('<h2>').text(NYTData.response.docs[i].byline.original);
-// 		var pSection = $('<h2>').text(NYTData.response.docs[i].section_name);
-// 		var pDate = $('<h2>').text(NYTData.response.docs[i].pub_date);
-// 		var pURL = $('<h2>').text(NYTData.response.docs[i].web_url);
-
-// 		resultDiv.append(pHeadline).append(pByline).append(pSection).append(pDate).append(pURL);
-
-// 		// NEED to take resultDiv and append into the container div where results appear
-
-// 		$(".results").append(resultDiv);
-// 	}
+	//  else,  use the nextTraintime  minutes calculated above when the first train has already arrived
+	else {
+		nextMins=nextTraintime;
+	}
 
 
+	//variables used to store the arrival time of the next train
+
+	//if the first train has not arrived yet,  convert the first train time into hh:mm with am/pm
+	var firstTrain = moment(firstTimeconverted).format("hh:mm a");
+	console.log("Next Train Arrival 2: "+firstTrain);
+
+	// if not, get the moment-now  and add in the minutes until that train arrives
+	var nextMins = moment().add(nextTraintime, "minutes")
+	// convert that time into hh:mm format, with am/pm
+	var nextTraintimeconverted = moment(nextMins).format("hh:mm a");
 
 
-// });
+	// variable to store the arrival time of the very next train to arrive (of all the trains)
+	var next2arrive;
+
+	if (diffMins<0){
+		next2arrive=firstTrain;
+	}else {
+		next2arrive=nextTraintimeconverted;
+	};
+
+	//variable to store the # of minutes from now until the next train arrives
+	var minutesAway;
+
+	if (timeNow==next2arrive){
+		minutesAway="00";
+	}else {
+		minutesAway=nextTraintime;
+	};
+
+
+	$("#schedule > tbody").append("<tr><td>" + newName + "</td><td>" + newDestination + "</td><td>" + newFrequency + "</td><td>" + next2arrive + "</td><td>" + minutesAway + "</td><td>");
+
+});
 
 
 
